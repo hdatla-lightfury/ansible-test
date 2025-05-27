@@ -1,0 +1,132 @@
+---
+- name: Setup Windows Environment for Android Development
+  hosts: localhost
+  connection: local # Assuming running directly on the Windows host
+  gather_facts: no
+
+  vars:
+    # Placeholder: Update with the actual path from your config/setup.json
+    android_compose_file_path: "C:/path/to/your/docker-compose.yml"
+    # Placeholder: Update with the actual image name from your config/setup.json
+    android_image_name: "your-android-image-name"
+    # Placeholder: Update with the actual container config from your config/setup.json
+    # This will likely be a list of dictionaries, e.g.:
+    # android_container_config:
+    #   - name: "android_container_1"
+    #     image: "{{ android_image_name }}"
+    #     state: present # or started
+    #     ports:
+    #       - "5555:5555"
+    #     volumes:
+    #       - "C:/data/android_sdk:/sdk"
+    android_container_config: [] # Initialize as empty list, to be filled with actual container definitions
+
+    # Docker daemon configuration
+    daemon_config_updates:
+      builder:
+        gc:
+          defaultKeepStorage: "20GB"
+          enabled: True
+      experimental: False
+      # Note: Ansible YAML requires boolean 'True'/'False' (capitalized) or 'yes'/'no'
+      # Python 'True'/'False' are fine when read by json.loads in the original script,
+      # but for direct YAML, it's better to use YAML boolean values.
+      # The json.dumps filter later will handle conversion for daemon.json
+
+    # Installation versions
+    docker_version: "27.5.1" # Example, ensure this is a valid Chocolatey version string
+    docker_compose_version: "2.33.0" # Example, ensure this is valid
+
+  tasks:
+    - name: Check if Chocolatey is installed
+      ansible.windows.win_stat:
+        path: C:\ProgramData\chocolatey\choco.exe
+      register: chocolatey_check
+
+    - name: Install Chocolatey if not present
+      ansible.windows.win_powershell:
+        script: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force;
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+        creates: C:\ProgramData\chocolatey\choco.exe
+      when: not chocolatey_check.stat.exists
+      # Using 'creates' is an alternative to 'when' for idempotency,
+      # but having both is fine and makes the 'when' condition very clear.
+
+    - name: Install Docker Desktop
+      chocolatey.chocolatey.win_chocolatey:
+        name: docker-desktop
+        version: "{{ docker_version }}"
+        state: present
+      register: docker_install_result
+      # Consider adding error handling or checks based on docker_install_result if needed
+
+    - name: Install Docker Compose
+      chocolatey.chocolatey.win_chocolatey:
+        name: docker-compose
+        version: "{{ docker_compose_version }}"
+        state: present
+      register: docker_compose_install_result
+      # Consider adding error handling or checks based on docker_compose_install_result
+
+    - name: Enable Hyper-V (if not already enabled)
+      ansible.windows.win_feature:
+        name: Hyper-V
+        state: present
+      register: hyper_v_enable_result
+
+    - name: Reboot to apply Hyper-V changes if Hyper-V was enabled
+      ansible.windows.win_reboot:
+        msg: "Rebooting to apply Hyper-V configuration changes."
+      when: hyper_v_enable_result.reboot_required
+
+    - name: Enable Containers Windows Feature (if not already enabled)
+      ansible.windows.win_feature:
+        name: Containers
+        state: present
+      register: containers_enable_result
+
+    - name: Reboot to apply Containers feature changes if it was enabled
+      ansible.windows.win_reboot:
+        msg: "Rebooting to apply Containers feature configuration changes."
+      when: containers_enable_result.reboot_required
+
+    - name: Ensure Docker config directory exists
+      ansible.windows.win_file:
+        path: C:\ProgramData\docker\config
+        state: directory
+
+    - name: Update Docker daemon configuration (daemon.json)
+      ansible.windows.win_copy:
+        dest: C:\ProgramData\docker\config\daemon.json
+        content: "{{ daemon_config_updates | to_json }}"
+        # The to_json filter converts the YAML/dict variable to a JSON string
+      register: daemon_config_update_result
+
+    - name: Restart Docker service if daemon configuration changed
+      ansible.windows.win_service:
+        name: docker
+        state: restarted
+        # start_mode: automatic # Optional: ensure it's set to auto-start
+      when: daemon_config_update_result.changed
+
+    - name: Ensure Docker service is started
+      ansible.windows.win_service:
+        name: docker
+        state: started
+        start_mode: automatic # Good practice to ensure it's set to auto-start
+
+    - name: Build Android Docker image using docker-compose
+      community.docker.docker_compose:
+        project_src: "{{ android_compose_file_path | ansible.windows.win_dirname }}"
+        compose_files:
+          - "{{ android_compose_file_path | ansible.windows.win_basename }}"
+        state: present # Ensures services are defined as per compose file
+        build: yes     # Attempts to build images defined in compose services
+      # This task aims to replicate DockerOperations.build_image(android_compose_file_path)
+      # It will build services defined in the compose file.
+      # The check for 'android_image_name' not existing before running is implicitly
+      # handled by 'build: yes', which is generally idempotent.
+      # If a more explicit check for 'android_image_name' specifically is needed
+      # before attempting any build, a docker_image_info task would precede this.
