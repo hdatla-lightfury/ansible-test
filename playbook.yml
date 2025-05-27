@@ -36,6 +36,7 @@
     # Installation versions
     docker_version: "27.5.1" # Example, ensure this is a valid Chocolatey version string
     docker_compose_version: "2.33.0" # Example, ensure this is valid
+    scheduled_playbook_path: "C:\\ProgramData\\AnsiblePlaybooks\\android_setup_playbook.yml"
 
   tasks:
     - name: Check if Chocolatey is installed
@@ -130,3 +131,71 @@
       # handled by 'build: yes', which is generally idempotent.
       # If a more explicit check for 'android_image_name' specifically is needed
       # before attempting any build, a docker_image_info task would precede this.
+
+    - name: Create Android Docker containers
+      community.docker.docker_container:
+        name: "{{ item.name }}"
+        image: "{{ item.image | default(android_image_name) }}" # Defaults to android_image_name if item.image is not specified
+        state: present # Ensures container is created but not necessarily started yet
+        ports: "{{ item.ports | default(omit) }}"
+        volumes: "{{ item.volumes | default(omit) }}"
+        env: "{{ item.env | default(omit) }}"
+        restart_policy: "{{ item.restart_policy | default(omit) }}"
+        # Add any other common docker_container parameters you anticipate needing,
+        # using 'default(omit)' for optional ones.
+        # Example: command: "{{ item.command | default(omit) }}"
+      loop: "{{ android_container_config }}"
+      loop_control:
+        loop_var: item
+      when: android_container_config is defined and android_container_config | length > 0
+      # This task will iterate over the list defined in the 'android_container_config' variable.
+      # Each item in the list should be a dictionary defining a container.
+      # User needs to populate 'android_container_config' in the vars section.
+
+    - name: Ensure Android Docker containers are running
+      community.docker.docker_container:
+        name: "{{ item.name }}"
+        # Most other parameters like image, ports, volumes are already applied
+        # during the 'state: present' task. Here we primarily care about the state.
+        # However, it's good practice to specify the image again in case this task
+        # is run independently or the container was removed.
+        image: "{{ item.image | default(android_image_name) }}"
+        state: started # Ensures container is running
+        restart_policy: "{{ item.restart_policy | default('unless-stopped') }}" # Example: set a default restart policy
+      loop: "{{ android_container_config }}"
+      loop_control:
+        loop_var: item
+      when: android_container_config is defined and android_container_config | length > 0
+      # This task will iterate over the list defined in the 'android_container_config' variable.
+      # It ensures each container is in the 'started' state.
+
+    - name: Ensure directory for scheduled playbook exists
+      ansible.windows.win_file:
+        path: "{{ scheduled_playbook_path | ansible.windows.win_dirname }}" # Extracts directory from the full path
+        state: directory
+
+    - name: Copy playbook to host for scheduled task
+      ansible.windows.win_copy:
+        src: "{{ playbook_dir }}/playbook.yml" # Assumes the playbook is named playbook.yml
+        dest: "{{ scheduled_playbook_path }}"
+        force: yes # Overwrite if it exists to ensure updates are applied
+
+    - name: Create scheduled task to run playbook on startup
+      ansible.windows.win_scheduled_task:
+        name: "Run Android Setup Playbook on Startup"
+        description: "Runs the Ansible playbook for Android environment setup on system startup."
+        actions:
+          - path: ansible-playbook # Assumes ansible-playbook is in PATH
+            arguments: '"{{ scheduled_playbook_path }}" --connection=local'
+            # Adding --connection=local as the playbook is designed for localhost
+        triggers:
+          - type: startup
+        principal:
+          user_id: SYSTEM # Runs as SYSTEM account
+          run_level: highest # Ensures administrative privileges
+        settings:
+          start_when_available: yes
+          # Do not start if on batteries, stop if goes on batteries - useful for laptops
+          disallow_start_if_on_batteries: no # Or yes, depending on preference
+          stop_if_going_on_batteries: no    # Or yes
+        state: present # Ensure task is present and configured
