@@ -23,15 +23,15 @@ on:
         required: true
         type: string
         description: The file name(.yml) of the Ansible playbook to run
-      secrets:
-        env_file_contents:
-          required: true
-        aws-access-key-id:
-          required: true
-        aws-secret-access-key:
-          required: true
-        aws-region:
-          required: true
+    secrets:
+      env_file_contents:
+        required: true
+      aws-access-key-id:
+        required: true
+      aws-secret-access-key:
+        required: true
+      aws-region:
+        required: true
         
 
 jobs:
