@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  base_os_windows:
+    extends:
+      file: ../docker_layers/base_os/windows/docker-compose.yml
+      service: base_os_windows
+  
+  dev_tools_windows:
+    extends:
+      file: ../docker_layers/dev_tools/windows/docker-compose.yml
+      service: dev_tools_windows
+    depends_on:
+      - base_os_windows
+  
+  ue5_build_prerequisites_windows:
+    extends:
+      file: ../docker_layers/ue5_build_prerequisites/windows/docker-compose.yml
+      service: ue5_build_prerequisites_windows
+    depends_on:
+      - dev_tools_windows
+
+  android_dependencies_windows:
+    extends:
+      file: ../docker_layers/android_dependencies/windows/docker-compose.yml
+      service: android_dependencies_windows
+    depends_on:
+      - ue5_build_prerequisites_windows
+
+  jenkins_agent_windows:
+    extends:
+      file: ../docker_layers/jenkins_agent/windows/docker-compose.yml
+      service: jenkins_agent_windows
+    depends_on:
+      - android_dependencies_windows
+    # naming the final image
+    image: titan_android_build_env_windows_runtime
+  

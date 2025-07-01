@@ -1,0 +1,186 @@
+## TODO : Find a way to split this in to multiple yaml files and merge them together
+## Merging casc files as reported by multiple developers is a huge pain and doesn't support deep merging, so for now we have to live with this long file
+## Refer -> https://github.com/jenkinsci/configuration-as-code-plugin/issues/1303
+
+x-baseView: &baseView
+  columns:
+    - "status"
+    - "weather"
+    - "jobName"
+    - "lastSuccess"
+    - "lastFailure"
+    - "lastDuration"
+    - "buildButton"
+    - "favoriteColumn"
+  includeStdJobList: true
+  topPortlets:
+    - latestBuilds:
+        name: "Latest builds"
+        numBuilds: 10
+
+x-regExJobFilter: &baseRegExJobFilter
+    includeExcludeTypeString: "includeMatched"
+    matchDisplayName: false
+    matchFullDisplayName: false
+    matchFullName: false
+    matchName: true
+    valueTypeString: "NAME"
+
+jenkins:
+  systemMessage: "Jenkins configured automatically by Jenkins Configuration as Code plugin"
+  numExecutors: 6 #Should ideally be the no of nodes available.
+  myViewsTabBar: "standard"
+  primaryView:
+      listView:
+        name: "all"
+
+  views:
+    - dashboard:
+        <<: *baseView
+        jobFilters:
+        - regExJobFilter:
+            <<: *baseRegExJobFilter
+            regex: ".*Android.*"
+        name: "1. Android"
+    - dashboard:
+        <<: *baseView
+        jobFilters:
+          - regExJobFilter:
+              <<: *baseRegExJobFilter
+              regex: ".*-Windows(?:-|$).*"
+        name: "2. Windows"
+    - dashboard:
+        <<: *baseView
+        jobFilters:
+          - regExJobFilter:
+              <<: *baseRegExJobFilter
+              regex: ".*WindowsEditor.*"
+        name: "3. UGS"
+    - all:
+        name: "all"
+
+  viewsTabBar: "standard"
+
+  securityRealm:
+    googleOAuth2:
+      clientId: "${GOOGLE_CLIENT_ID}"
+      clientSecret: "${GOOGLE_CLIENT_SECRET}"
+
+  authorizationStrategy:
+    roleBased:
+      roles:
+        # Define roles at the global level
+        # Full administrative access for backend and devops team
+        global:
+          - name: administration
+            permissions:
+              - "Overall/Administer"
+            entries:
+              - user: "jenkins-admin@lightfurygames.com"
+          - name: "readonly" ##every user who is not given administrator access should be given this role by authsphere by default
+            permissions:
+                - "Overall/Read"
+            entries:
+                - group: "authenticated"
+        # Ability to run parent pipelines for QA
+        items:
+          - name: titan-build-publish-jobs-run-access
+            pattern: "BuildPublish.*"
+            permissions: &build_run_permissions
+              - "Job/Read"
+              - "Job/Build"
+              - "Job/Cancel"
+              - "Job/Discover"
+              - "Run/Replay"
+              - "Run/Update"
+              - "View/Read"
+              - "Overall/Read"
+          # Ability to run parent jobs and view logs of child jobs
+          - name: titan-all-jobs-run-access
+            pattern: "^(?!(?:Reload Jenkins Casc$|Job_DSL_Seed$|Install Plugins)$).*$"
+            permissions: *build_run_permissions
+          # Ability to view status,logs of all jobs
+          - name: titan-all-jobs-view-access
+            pattern: "^(?!(?:Reload Jenkins Casc$|Job_DSL_Seed$|Install Plugins)$).*$"
+            permissions: &view_permissions
+              - "Job/Read"
+              - "View/Read"
+              - "Overall/Read"
+          # Ability to view status,logs of parent pipelines
+          - name: titan-build-publish-jobs-view-access
+            pattern: "BuildPublish.*"
+            permissions: *view_permissions
+
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              scope: GLOBAL
+              id: slack-token
+              secret: '${SLACK_TOKEN}'
+              description: Slack token
+
+unclassified:
+  buildDiscarders:
+    configuredBuildDiscarders:
+      - "jobBuildDiscarder"
+      - simpleBuildDiscarder:
+          discarder:
+            logRotator:
+              daysToKeepStr: "45"
+              numToKeepStr: "300"
+  location:
+    url: "${JENKINS_URL}" # Replace with your Jenkins server's base URL
+    adminAddress: "jenkins-admin@lightfurygames.com"  # Set the administrator's email address
+  mailer:
+    authentication:
+      password: "${JENKINS_ADMIN_GOOGLE_APP_PASSWORD}"
+      username: "jenkins-admin@lightfurygames.com"
+    charset: "UTF-8"
+    smtpHost: "smtp.gmail.com"
+    smtpPort: "465"
+    useSsl: true
+    useTls: false
+  slackNotifier:
+    teamDomain:  lightfurygames.slack.com
+    tokenCredentialId: slack-token
+    botUser: true
+  globalLibraries:
+    libraries:
+      - name: "dsl_scripts"
+        defaultVersion: "master"
+        implicit: true
+        allowVersionOverride: false
+        includeInChangesets: false
+        #TODO: Need to shift this to perforce SCM, however perforce plugin is giving issues with p4 port
+        # So we cant use perforce scm via jenkins casc until this issue in p4 plugin is fixed.
+        # refer https://github.com/jenkinsci/configuration-as-code-plugin/issues/1266
+        # since jcasc plugin changed the behaviour to fail if any error is encountered, so the fix still doesnt work.
+        # despite the author claiming its fixed, however testing it is still giving the error because of latest jcasc behaviour.
+        retriever:
+          legacySCM:
+            scm:
+              fileSystem:
+                path: "/var/jenkins_home/job-dsl/dsl_scripts"
+
+groovy:
+  - script: |
+      import hudson.model.User
+      import jenkins.security.ApiTokenProperty
+      // workaround for setting api-key https://github.com/jenkinsci/configuration-as-code-plugin/issues/1830
+      def perforce_token = System.getenv("PERFORCE_TRIGGER_API_TOKEN")
+      def authsphere_token = System.getenv("AUTHSPHERE_TOKEN")
+      def swarm_agent_token = System.getenv("SWARM_AGENT_TOKEN")
+      def user = User.get('jenkins-admin@lightfurygames.com')
+      user.getProperty(ApiTokenProperty.class).tokenStore.addFixedNewToken("perforce-trigger-token", perforce_token)
+      user.getProperty(ApiTokenProperty.class).tokenStore.addFixedNewToken("authsphere-token", authsphere_token)
+      user.getProperty(ApiTokenProperty.class).tokenStore.addFixedNewToken("swarm-agent-token", swarm_agent_token)
+      user.save()
+
+jobs:
+  - file: '/var/jenkins_home/job-dsl/seed_job_setup.groovy'

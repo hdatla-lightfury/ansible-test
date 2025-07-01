@@ -1,0 +1,3 @@
+# for amazon.aws and community.awscollection
+botocore>=1.34.0
+boto3>=1.34.0

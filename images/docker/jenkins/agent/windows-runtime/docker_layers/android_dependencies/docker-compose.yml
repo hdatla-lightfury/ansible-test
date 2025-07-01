@@ -1,0 +1,14 @@
+services:
+  android_dependencies_windows:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE_FOR_ANDROID_DEPENDENCIES_WINDOWS}
+        AWS_ACCESS_KEY: ${AWS_ACCESS_KEY} 
+        AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+        AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+        ANDROID_HOME: ${ANDROID_HOME}
+        ANDROID_SDK_ROOT: ${ANDROID_SDK_ROOT}
+    image: android_dependencies_windows
+    container_name: android_dependencies_windows
