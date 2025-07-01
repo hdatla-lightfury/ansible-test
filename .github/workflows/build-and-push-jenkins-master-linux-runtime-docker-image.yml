@@ -16,6 +16,7 @@ jobs:
       ansible_playbook_dir: configuration/ansible/playbooks/docker/jenkins/
       ansible_playbook_file_name: build-push-docker-images.yml
       ecr_repo: jenkins/master
+    secrets:
       env_file_contents: |
         CASC_JENKINS_CONFIG=/var/jenkins_home/jenkins-casc.yaml
         SLACK_TOKEN=${{ secrets.SLACK_TOKEN }}
@@ -29,6 +30,9 @@ jobs:
         GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
         GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
         JENKINS_ADMIN_GOOGLE_APP_PASSWORD=${{ secrets.JENKINS_ADMIN_GOOGLE_APP_PASSWORD }}
-      secrets: inherit
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+      
           
           
