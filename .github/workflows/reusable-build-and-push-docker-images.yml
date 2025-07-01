@@ -23,11 +23,6 @@ on:
         required: true
         type: string
         description: The file name(.yml) of the Ansible playbook to run
-      env_file_contents:
-        required: true
-        type: string
-        default: ""
-        description: The contents of the .env file to create in the Docker build directory
 
 jobs:
   build-and-push-docker-image-to-ecr:
