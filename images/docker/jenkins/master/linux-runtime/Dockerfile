@@ -138,3 +138,4 @@ ENV CASC_JENKINS_CONFIG=${CASC_JENKINS_CONFIG}\
 
 # Switch back to the Jenkins user
 USER jenkins
+
