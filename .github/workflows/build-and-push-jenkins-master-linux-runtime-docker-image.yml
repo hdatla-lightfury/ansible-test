@@ -11,7 +11,7 @@ jobs:
   build-master-linux-runtime:
     uses: ./.github/workflows/reusable-build-and-push-docker-images.yml
     with:
-      dockerfile_dir: images/docker/jenkins/master/linux-runtime
+      dockerfile_dir: "${{ github.workspace }}/images/docker/jenkins/master/linux-runtime"
       image_config_file: images/docker/jenkins/master/linux-runtime/image-config.yml
       ansible_playbook_dir: configuration/ansible/playbooks/docker/jenkins/
       ansible_playbook_file_name: build-push-docker-images.yml
