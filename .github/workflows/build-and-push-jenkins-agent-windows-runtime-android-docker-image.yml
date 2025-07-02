@@ -17,4 +17,9 @@ jobs:
       ansible_playbook_dir: 'configuration/ansible/playbooks/docker/jenkins/'
       ansible_playbook_file_name: 'build-push-docker-images.yml'
       ecr_repo: 'jenkins/agent/android'
-      env_file_contents: ""  # No .env file needed for agent
+      environment_name: ${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/staging' && 'staging' }}
+    secrets:
+      env_file_contents: ${{ secrets.ENV_FILE_CONTENTS_JENKINS_AGENT_WINDOWS_RUNTIME_ANDROID}}
+      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
+      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
