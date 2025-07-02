@@ -1,140 +1,63 @@
-# Use the official Jenkins LTS image with JDK 17 as the base image
-FROM jenkins/jenkins:lts-jdk17
-# Switch to root user to install additional packages
-USER root
+---
+- name: Build and push Jenkins Docker image to AWS ECR
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - amazon.aws
+    - community.docker
 
-# Update the package list and install necessary packages
-RUN apt-get update && apt-get install -y \
-    lsb-release \
-    python3-pip \
-    wget \
-    curl \
-    apt-transport-https \
-    ca-certificates \
-    gnupg
+  vars:
+    aws_region: "{{ aws_region }}"
+    dockerfile_dir: "{{ dockerfile_dir}}"
+    ecr_repository: "{{ ecr_repository}}"
+    docker_image_tag: "{{ docker_image_tag}}"
 
-# Add Docker's official GPG key and Docker repository
-RUN curl -fsSLo /usr/share/keyrings/docker-archive-keyring.asc https://download.docker.com/linux/debian/gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.asc] \
-    https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+  tasks:
 
-# Update the package list again and install Docker CLI
-RUN apt-get update && apt-get install -y docker-ce-cli
+    - name: Ensure required variables are set
+      assert:
+        that:
+          - aws_region is defined and aws_region | length > 0
+          - dockerfile_dir is defined and dockerfile_dir | length > 0
+          - ecr_repository is defined and ecr_repository | length > 0
+          - docker_image_tag is defined and docker_image_tag | length > 0
+        fail_msg: >
+          One or more required variables are not set: aws_region, dockerfile_dir,
+          ecr_repository, docker_image_tag. Please pass them via --extra-vars or set them in your inventory.        
 
-# Install Perforce CLI using updated key management
-RUN wget -qO - https://package.perforce.com/perforce.pubkey | gpg --dearmor > /usr/share/keyrings/perforce-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/perforce-archive-keyring.gpg] http://package.perforce.com/apt/ubuntu focal release" > /etc/apt/sources.list.d/perforce.list && \
-    apt-get update && apt-get install -y helix-cli
+    - name: Ensure ECR repository exists
+      community.aws.ecs_ecr:
+        name: "{{ ecr_repository }}"
+        state: present
+        region: "{{ aws_region }}"
+      register: ecr_info
 
-# Create Docker group if not exists and add Jenkins user to it and give sudo permission
-RUN apt-get update && apt-get install -y sudo && \
-    groupadd -f docker && \
-    usermod -aG docker jenkins && \
-    echo "jenkins ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+    - name: Set ECR registry and repo URL
+      set_fact:
+        ecr_repository_url: "{{ ecr_info.repository.repositoryUri }}"
+        ecr_registry_url: "{{ ecr_info.repository.repositoryUri | regex_replace('/.*$', '') }}"
 
-COPY plugin-list.txt /var/jenkins_home/plugin-list.txt
+    - name: Get ECR token
+      shell: "aws ecr get-login-password --region {{ aws_region}}"
+      register: ecr_token
 
-RUN jenkins-plugin-cli --plugin-file /var/jenkins_home/plugin-list.txt
-# Copy all job DSL scripts from the jobs directory
-COPY job-dsl /var/jenkins_home/job-dsl
+    - name: Log in to ECR registry
+      community.docker.docker_login:
+        registry: "{{ ecr_registry_url }}"
+        username: "AWS"
+        password: "{{ lookup('aws_ecr_token', aws_region) }}"
+        region: "{{ aws_region }}"
 
-RUN mkdir /var/jenkins_home/init.groovy.d
+    - name: Build Docker image
+      community.docker.docker_image:
+        name: "{{ ecr_repository_url }}"
+        tag: "{{ docker_image_tag }}"
+        build:
+          path: "{{ dockerfile_dir }}"
+        source: build
 
-COPY job-dsl/init.groovy.d /var/jenkins_home/init.groovy.d
-
-COPY jenkins-casc.yaml /var/jenkins_home/jenkins-casc.yaml
-
-ARG CASC_JENKINS_CONFIG \
-    JENKINS_ADMIN_PASSWORD \
-    JENKINS_URL \
-    GOOGLE_CLIENT_ID \
-    GOOGLE_CLIENT_SECRET \
-    SLACK_TOKEN \
-    SWARM_AGENT_TOKEN \
-    AUTHSPHERE_TOKEN \
-    PERFORCE_TRIGGER_API_TOKEN \
-    JENKINS_ADMIN_GOOGLE_APP_PASSWORD
-
-ENV CASC_JENKINS_CONFIG=${CASC_JENKINS_CONFIG}\
-    JENKINS_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD} \
-    JENKINS_URL=${JENKINS_URL} \
-    GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} \
-    GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} \
-    SLACK_TOKEN=${SLACK_TOKEN} \
-    SWARM_AGENT_TOKEN=${SWARM_AGENT_TOKEN} \
-    AUTHSPHERE_TOKEN=${AUTHSPHERE_TOKEN} \
-    PERFORCE_TRIGGER_API_TOKEN=${PERFORCE_TRIGGER_API_TOKEN} \
-    JENKINS_ADMIN_GOOGLE_APP_PASSWORD=${JENKINS_ADMIN_GOOGLE_APP_PASSWORD}
-
-# Switch back to the Jenkins user
-USER jenkins
-# Use the official Jenkins LTS image with JDK 17 as the base image
-FROM jenkins/jenkins:lts-jdk17
-# Switch to root user to install additional packages
-USER root
-
-# Update the package list and install necessary packages
-RUN apt-get update && apt-get install -y \
-    lsb-release \
-    python3-pip \
-    wget \
-    curl \
-    apt-transport-https \
-    ca-certificates \
-    gnupg
-
-# Add Docker's official GPG key and Docker repository
-RUN curl -fsSLo /usr/share/keyrings/docker-archive-keyring.asc https://download.docker.com/linux/debian/gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.asc] \
-    https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-
-# Update the package list again and install Docker CLI
-RUN apt-get update && apt-get install -y docker-ce-cli
-
-# Install Perforce CLI using updated key management
-RUN wget -qO - https://package.perforce.com/perforce.pubkey | gpg --dearmor > /usr/share/keyrings/perforce-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/perforce-archive-keyring.gpg] http://package.perforce.com/apt/ubuntu focal release" > /etc/apt/sources.list.d/perforce.list && \
-    apt-get update && apt-get install -y helix-cli
-
-# Create Docker group if not exists and add Jenkins user to it and give sudo permission
-RUN apt-get update && apt-get install -y sudo && \
-    groupadd -f docker && \
-    usermod -aG docker jenkins && \
-    echo "jenkins ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-COPY plugin-list.txt /var/jenkins_home/plugin-list.txt
-
-RUN jenkins-plugin-cli --plugin-file /var/jenkins_home/plugin-list.txt
-# Copy all job DSL scripts from the jobs directory
-COPY job-dsl /var/jenkins_home/job-dsl
-
-RUN mkdir /var/jenkins_home/init.groovy.d
-
-COPY job-dsl/init.groovy.d /var/jenkins_home/init.groovy.d
-
-COPY jenkins-casc.yaml /var/jenkins_home/jenkins-casc.yaml
-
-ARG CASC_JENKINS_CONFIG \
-    JENKINS_ADMIN_PASSWORD \
-    JENKINS_URL \
-    GOOGLE_CLIENT_ID \
-    GOOGLE_CLIENT_SECRET \
-    SLACK_TOKEN \
-    SWARM_AGENT_TOKEN \
-    AUTHSPHERE_TOKEN \
-    PERFORCE_TRIGGER_API_TOKEN \
-    JENKINS_ADMIN_GOOGLE_APP_PASSWORD
-
-ENV CASC_JENKINS_CONFIG=${CASC_JENKINS_CONFIG}\
-    JENKINS_ADMIN_PASSWORD=${JENKINS_ADMIN_PASSWORD} \
-    JENKINS_URL=${JENKINS_URL} \
-    GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} \
-    GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} \
-    SLACK_TOKEN=${SLACK_TOKEN} \
-    SWARM_AGENT_TOKEN=${SWARM_AGENT_TOKEN} \
-    AUTHSPHERE_TOKEN=${AUTHSPHERE_TOKEN} \
-    PERFORCE_TRIGGER_API_TOKEN=${PERFORCE_TRIGGER_API_TOKEN} \
-    JENKINS_ADMIN_GOOGLE_APP_PASSWORD=${JENKINS_ADMIN_GOOGLE_APP_PASSWORD}
-
-# Switch back to the Jenkins user
-USER jenkins
+    - name: Push Docker image to ECR
+      community.docker.docker_image:
+        name: "{{ ecr_repository_url }}"
+        tag: "{{ docker_image_tag }}"
+        push: true
