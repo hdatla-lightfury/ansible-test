@@ -36,9 +36,10 @@
         region: "{{ aws_region }}"
       register: ecr_info
 
-    - set_fact:
-        ecr_registry_url: "{{ caller_info.account }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
-        ecr_repository_url: "{{ ecr_registry_url }}/{{ ecr_repository }}"
+    - name: Set ECR registry and repo URL
+      set_fact:
+        ecr_registry_url: "{{ caller_info.ansible_facts.account }}.dkr.ecr.{{ aws_region }}.amazonaws.com"
+        ecr_repository_url: "{{ caller_info.ansible_facts.account }}.dkr.ecr.{{ aws_region }}.amazonaws.com/{{ ecr_repository }}"
 
     - name: Get ECR token
       shell: "aws ecr get-login-password --region {{ aws_region}}"
