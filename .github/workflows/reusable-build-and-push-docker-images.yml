@@ -76,6 +76,11 @@ jobs:
           TAG=$(python3 -c "import yaml; print(yaml.safe_load(open('${{ env.IMAGE_CONFIG_FILE }}'))['image_tag'])")
           echo "DOCKER_IMAGE_TAG=$TAG" >> $GITHUB_ENV
 
+      - name: Create .env file in Docker build directory
+        run: |
+          cat <<EOF > ${{ env.DOCKERFILE_DIR }}/.env
+          ${{secrets.env_file_contents}}
+          EOF
       - name: Run Ansible playbook to build and push agent image
         run: |
           ansible-playbook ${{ env.ANSIBLE_PLAYBOOK }} \
