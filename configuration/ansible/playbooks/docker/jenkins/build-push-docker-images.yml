@@ -45,7 +45,7 @@
       community.docker.docker_login:
         registry: "{{ ecr_registry_url }}"
         username: "AWS"
-        password: "{{ lookup('aws_ecr_token', aws_region) }}"
+        password: "{{ ecr_token.stdout }}"
         region: "{{ aws_region }}"
 
     - name: Build Docker image
