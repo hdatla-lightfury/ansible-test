@@ -23,6 +23,10 @@ on:
         required: true
         type: string
         description: The file name(.yml) of the Ansible playbook to run
+      environment_name:
+        required: true
+        type: string
+        description: the environment(production/staging) to deploy to
     secrets:
       env_file_contents:
         required: true
