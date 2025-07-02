@@ -12,7 +12,7 @@ jobs:
   build-agent-windows-runtime:
     uses: ./.github/workflows/reusable-build-and-push-docker-images.yml
     with:
-      dockerfile_dir: "${{ github.workspace }}/images/docker/jenkins/agent/windows-runtime/android"
+      dockerfile_dir: "images/docker/jenkins/agent/windows-runtime/android"
       image_config_file: 'images/docker/jenkins/agent/windows-runtime/android/image-config.yml'
       ansible_playbook_dir: 'configuration/ansible/playbooks/docker/jenkins/'
       ansible_playbook_file_name: 'build-push-docker-images.yml'
