@@ -57,7 +57,6 @@
         source: build
 
     - name: Push Docker image to ECR
-      community.docker.docker_image:
+      community.docker.docker_image_push:
         name: "{{ ecr_repository_url }}"
         tag: "{{ docker_image_tag }}"
-        push: true
