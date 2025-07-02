@@ -85,7 +85,7 @@ jobs:
           ${{secrets.env_file_contents}}
           EOF
 
-       name: Export absolute dockerfile_dir
+      - name: Export absolute dockerfile_dir
         run: |
           export DOCKERFILE_ABSOLUTE_DIR="$(pwd)/images/docker/jenkins/master/linux-runtime"
           echo "DOCKERFILE_ABSOLUTE_DIR=$DOCKERFILE_ABSOLUTE_DIR" >> $GITHUB_ENV
