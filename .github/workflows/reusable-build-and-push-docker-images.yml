@@ -85,7 +85,7 @@ jobs:
           ${{secrets.env_file_contents}}
           EOF
 
-      - name: Run Ansible playbook to build and push agent image
+      - name: Run Ansible playbook to build and push docker image
         run: |
-          ansible-playbook ${{ env.ANSIBLE_PLAYBOOK_DIR }}/${{env.ANSIBLE_PLAYBOOK_FILE_NAME}} \
-            --extra-vars "@{{env.ANSIBLE_PLAYBOOK_DIR}}/extra-vars.yml" -v
+          ansible-playbook "${{ env.ANSIBLE_PLAYBOOK_DIR }}/${{ env.ANSIBLE_PLAYBOOK_FILE_NAME }}" \
+            --extra-vars "@${{ env.ANSIBLE_PLAYBOOK_DIR }}/extra-vars.yml" -v
