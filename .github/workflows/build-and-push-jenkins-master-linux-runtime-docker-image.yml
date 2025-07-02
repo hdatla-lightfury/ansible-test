@@ -1,4 +1,4 @@
-name: Build and Push Jenkins Master Running lin Linux Docker Images to ECR
+name: Build and Push Jenkins Master Running on Linux Docker Images to ECR
 
 on:
   push:
@@ -16,23 +16,10 @@ jobs:
       ansible_playbook_dir: configuration/ansible/playbooks/docker/jenkins/
       ansible_playbook_file_name: build-push-docker-images.yml
       ecr_repo: jenkins/master
-    secrets:
-      env_file_contents: |
-        CASC_JENKINS_CONFIG=/var/jenkins_home/jenkins-casc.yaml
-        SLACK_TOKEN=${{ secrets.SLACK_TOKEN }}
-        JENKINS_ADMIN_PASSWORD=${{ secrets.JENKINS_ADMIN_PASSWORD }}
-        PERFORCE_TRIGGER_API_TOKEN=${{ secrets.PERFORCE_TRIGGER_API_TOKEN }}
-        AUTHSPHERE_TOKEN=${{ secrets.AUTHSPHERE_TOKEN }}
-        SWARM_AGENT_TOKEN=${{ secrets.SWARM_AGENT_TOKEN }}
-        PERFORCE_USERNAME=${{ secrets.PERFORCE_USERNAME }}
-        PERFORCE_PASSWORD=${{ secrets.PERFORCE_PASSWORD }}
-        PERFORCE_PORT=${{ secrets.PERFORCE_PORT }}
-        GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-        GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-        JENKINS_ADMIN_GOOGLE_APP_PASSWORD=${{ secrets.JENKINS_ADMIN_GOOGLE_APP_PASSWORD }}
+      environment_name: ${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/staging' && 'staging' }}
+    secrets: 
+      env_file_contents: ${{ secrets.ENV_FILE_CONTENTS_JENKINS_MASTER_LINUX_RUNTIME}}
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
-      
-          
-          
+                
