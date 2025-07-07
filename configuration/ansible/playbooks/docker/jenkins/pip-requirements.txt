@@ -1,0 +1,11 @@
+# for amazon.aws and community.awscollection
+botocore>=1.34.0
+boto3>=1.34.0
+
+# for community.docker
+# refer here -> https://github.com/ansible-collections/community.docker/blob/main/meta/ee-requirements.txt
+docker
+urllib3
+requests
+paramiko
+pyyaml

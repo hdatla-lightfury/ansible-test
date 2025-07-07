@@ -1,0 +1,9 @@
+services:
+  ue5_build_prerequisites_windows:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE_FOR_UNREAL_BUILD_DEPENDENCIES_WINDOWS}
+    image: ue5_build_prerequisites_windows
+    container_name: ue5_build_prerequisites_windows
