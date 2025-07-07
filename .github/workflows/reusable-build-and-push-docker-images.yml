@@ -30,7 +30,11 @@ on:
       target_service:
         required: true
         type: string
-        description: the target service name you are building docker image for(found in docker-compose.yml file)  
+        description: the target service name you are building docker image for(found in docker-compose.yml file)
+      github_runner_os:
+        required: true
+        type: string
+        description: target_os where your docker images are supposed to be built.
     secrets:
       env_file_contents:
         required: true
@@ -41,10 +45,9 @@ on:
       aws-region:
         required: true
         
-
 jobs:
   build-and-push-docker-image-to-ecr:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github_runner_os }}
     environment: ${{inputs.environment_name}}
     env:
       DOCKERFILE_DIR: ${{ inputs.dockerfile_dir }}
