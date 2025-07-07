@@ -85,7 +85,7 @@
     - name: Parse Image Name and Tag
       set_fact:
         source_image: "{{ image_name_result.stdout.split(':')[0] }}"
-        source_tag: "{{ image_name_result.stdout.split(':')[1] }}"
+        source_tag: "latest"
       when: docker_runtime_os in ["linux", "windows"]
 
     - name: Tag the built image for ECR
