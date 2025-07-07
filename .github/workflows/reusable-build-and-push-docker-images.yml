@@ -74,6 +74,7 @@ jobs:
       LFG_ANSIBLE_MANAGED_NODE_PORT: ${{secrets.lfg_ansible_managed_node_port}}
       LFG_ANSIBLE_MANAGED_NODE_USER: ${{secrets.lfg_ansible_managed_node_user}}
       LFG_ANSIBLE_MANAGED_NODE_PASS: ${{secrets.lfg_ansible_managed_node_pass}}
+      ENVIRONMENT: ${{inputs.environment_name}}
 
     steps:
       - name: Checkout code
@@ -114,7 +115,7 @@ jobs:
           echo "DOCKERFILE_ABSOLUTE_DIR=$DOCKERFILE_ABSOLUTE_DIR" >> $GITHUB_ENV
           echo "DOCKER_SERVICE_NAME=$DOCKER_SERVICE_NAME" >> $GITHUB_ENV
           echo "DOCKER_RUNTIME_OS=$DOCKER_RUNTIME_OS" >> $GITHUB_ENV
-          echo "ENVIRONMENT" >> $GITHUB_ENV
+          echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
                 
       - name: Generate inventory if target is Windows
         if: ${{ env.DOCKER_RUNTIME_OS == 'windows' }}
