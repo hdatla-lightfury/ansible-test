@@ -1,6 +1,6 @@
 ---
 - name: Build and push Jenkins Docker image to AWS ECR
-  hosts: localhost
+  hosts:  "{{ 'localhost' if docker_runtime_os == 'linux' else 'windows_host' }}"
   gather_facts: false
   collections:
     - amazon.aws
@@ -14,7 +14,6 @@
     target_service: "{{ target_service}}"
 
   tasks:
-
     - name: Ensure required variables are set
       assert:
         that:
@@ -38,37 +37,63 @@
         ecr_repository_url: "{{ ecr_info.repository.repositoryUri }}"
         ecr_registry_url: "{{ ecr_info.repository.repositoryUri | regex_replace('/.*$', '') }}"
 
-    - name: Get ECR token
-      shell: "aws ecr get-login-password --region {{ aws_region}}"
+    - name: Get ECR token (cross-platform)
+      shell: "aws ecr get-login-password --region {{ aws_region }}"
       register: ecr_token
+      when: docker_runtime_os in ['linux', 'windows']
 
-    - name: Log in to ECR registry
-      community.docker.docker_login:
-        registry: "{{ ecr_registry_url }}"
-        username: "AWS"
-        password: "{{ ecr_token.stdout }}"
-        reauthorize: true
-
-    - name: Build final Docker image via docker-compose 
-      ansible.builtin.command: docker compose build
+    - name: Docker login to ECR registry (cross platform)
+      shell: "echo {{ ecr_token.stdout }} | docker login --username AWS --password-stdin {{ ecr_registry_url }}"
       args:
         chdir: "{{ dockerfile_dir }}"
+      when: docker_runtime_os in ["linux", "windows"]
     
-    - name: Extract image details built vis docker-compose
-      command: docker compose config | yq '.services.{{ target_service }}.image'
+    - name: Check if Docker image with the same tag already exists in ECR (only in production)
+      shell: |
+        aws ecr describe-images \
+          --repository-name {{ ecr_repository }} \
+          --image-ids imageTag={{ docker_image_tag }} \
+          --region {{ aws_region }}
+      register: image_check_result
+      ignore_errors: true
+      changed_when: false
+      when: environment_name == "production"
+
+    - name: Fail if image with this tag already exists in production
+      fail:
+        msg: >
+          Docker image with tag '{{ docker_image_tag }}' already exists in ECR '{{ ecr_repository }}' in production.
+          Please use a unique tag or delete the existing image before proceeding.
+      when:
+        - environment_name == "production"
+        - image_check_result.rc == 0
+
+    - name: Build final Docker image via docker-compose 
+      shell: "docker compose build {{ target_service }}"
+      args:
+        chdir: "{{ dockerfile_dir }}"
+      when: docker_runtime_os in ["linux", "windows"]
+    
+    - name: Extract image details built via docker-compose
+      shell: docker compose config | yq '.services.{{ target_service }}.image'
+      args:
+        chdir: "{{ dockerfile_dir }}"
       register: image_name_result
       changed_when: false
-    
+      when: docker_runtime_os in ["linux", "windows"]
+
     - name: Parse Image Name and Tag
-      ansible.builtin.set_fact:
+      set_fact:
         source_image: "{{ image_result.stdout.split(':')[0] }}"
         source_tag: "{{ image_result.stdout.split(':')[1] }}"
-        
+      when: docker_runtime_os in ["linux", "windows"]
+
     - name: Tag the built image for ECR
-      ansible.builtin.command: >
+      shell: >
         docker tag {{ source_image }}:{{ source_tag }} {{ ecr_repository_url }}:{{ docker_image_tag }}
+      when: docker_runtime_os in ["linux", "windows"]
 
     - name: Push Docker image to ECR
-      community.docker.docker_image_push:
-        name: "{{ ecr_repository_url }}"
-        tag: "{{ docker_image_tag }}"
+      shell: >
+        docker push {{ ecr_repository_url }}:{{ docker_image_tag }}
+      when: docker_runtime_os in ["linux", "windows"]
