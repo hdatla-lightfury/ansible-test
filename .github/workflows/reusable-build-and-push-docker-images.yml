@@ -1,0 +1,96 @@
+name: Reusbale - Build and Push Jenkins Docker Images to ECR
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile_dir:
+        required: true
+        type: string
+        description: The directory containing the Dockerfile
+      image_config_file:
+        required: true
+        type: string
+        description: The file containing the image configuration
+      ecr_repo:
+        required: true
+        type: string
+        description: The ECR repository to push the image to
+      ansible_playbook_dir:
+        required: true
+        type: string
+        description: The directory where ansible playbook resides
+      ansible_playbook_file_name:
+        required: true
+        type: string
+        description: The file name(.yml) of the Ansible playbook to run
+      environment_name:
+        required: true
+        type: string
+        description: the environment(production/staging) to deploy to
+    secrets:
+      env_file_contents:
+        required: true
+      aws-access-key-id:
+        required: true
+      aws-secret-access-key:
+        required: true
+      aws-region:
+        required: true
+        
+
+jobs:
+  build-and-push-docker-image-to-ecr:
+    runs-on: ubuntu-latest
+    environment: ${{inputs.environment_name}}
+    env:
+      DOCKERFILE_DIR: ${{ inputs.dockerfile_dir }}
+      IMAGE_CONFIG_FILE: ${{ inputs.image_config_file }} 
+      ECR_REPO: ${{inputs.ecr_repo}}/${{inputs.environment_name}}
+      ANSIBLE_PLAYBOOK_DIR: ${{ inputs.ansible_playbook_dir }}
+      ANSIBLE_PLAYBOOK_FILE_NAME: ${{ inputs.ansible_playbook_file_name }}
+      ENV_FILE_CONTENTS: ${{ secrets.env_file_contents }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install Ansible and required collections
+        run: |
+          pip install --upgrade pip
+          pip install ansible PyYAML
+          pip install -r "${{ env.ANSIBLE_PLAYBOOK_DIR}}/pip-requirements.txt"
+          ansible-galaxy collection install -r "${{ env.ANSIBLE_PLAYBOOK_DIR}}/ansible-collections.yml"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: ${{ secrets.aws-region}}
+
+      - name: Read image tag from config
+        id: tag_config
+        run: |
+          TAG=$(python3 -c "import yaml; print(yaml.safe_load(open('${{ env.IMAGE_CONFIG_FILE }}'))['image_tag'])")
+          echo "DOCKER_IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Create .env file in Docker build directory
+        run: |
+          cat <<EOF > ${{ env.DOCKERFILE_DIR }}/.env
+          ${{secrets.env_file_contents}}
+          EOF
+
+      - name: Export absolute dockerfile_dir
+        run: |
+          export DOCKERFILE_ABSOLUTE_DIR="$(pwd)/images/docker/jenkins/master/linux-runtime"
+          echo "DOCKERFILE_ABSOLUTE_DIR=$DOCKERFILE_ABSOLUTE_DIR" >> $GITHUB_ENV
+
+      - name: Run Ansible playbook to build and push docker image
+        run: |
+          ansible-playbook "${{ env.ANSIBLE_PLAYBOOK_DIR }}/${{ env.ANSIBLE_PLAYBOOK_FILE_NAME }}" \
+            --extra-vars "@${{ env.ANSIBLE_PLAYBOOK_DIR }}/extra-vars.yml" -v

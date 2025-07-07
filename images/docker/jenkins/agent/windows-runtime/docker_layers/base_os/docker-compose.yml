@@ -1,0 +1,7 @@
+services:
+  base_os_windows:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: base_os_windows
+    container_name: base_os_windows
