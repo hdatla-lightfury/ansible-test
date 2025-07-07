@@ -74,6 +74,7 @@ jobs:
       LFG_ANSIBLE_MANAGED_NODE_PORT: ${{secrets.lfg_ansible_managed_node_port}}
       LFG_ANSIBLE_MANAGED_NODE_USER: ${{secrets.lfg_ansible_managed_node_user}}
       LFG_ANSIBLE_MANAGED_NODE_PASS: ${{secrets.lfg_ansible_managed_node_pass}}
+      ENVIRONMENT: ${{inputs.environment_name}}
 
     steps:
       - name: Checkout code
