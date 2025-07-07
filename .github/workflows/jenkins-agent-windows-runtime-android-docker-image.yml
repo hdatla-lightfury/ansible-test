@@ -29,6 +29,6 @@ jobs:
       docker_runtime_os: 'windows' 
     secrets:
       env_file_contents: ${{ secrets.ENV_FILE_CONTENTS_JENKINS_AGENT_WINDOWS_RUNTIME_ANDROID}}
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+      aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID}}
+      aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      aws_region: ${{ secrets.AWS_DEFAULT_REGION }}
