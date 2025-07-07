@@ -87,7 +87,7 @@ jobs:
 
       - name: Export absolute dockerfile_dir
         run: |
-          export DOCKERFILE_ABSOLUTE_DIR="$(pwd)/images/docker/jenkins/master/linux-runtime"
+          export DOCKERFILE_ABSOLUTE_DIR="$(pwd)/${{ env.DOCKERFILE_DIR }}"
           echo "DOCKERFILE_ABSOLUTE_DIR=$DOCKERFILE_ABSOLUTE_DIR" >> $GITHUB_ENV
 
       - name: Run Ansible playbook to build and push docker image
