@@ -26,6 +26,7 @@ jobs:
       ecr_repo: 'jenkins/agent/android'
       environment_name: ${{ github.ref == 'refs/heads/main' && 'production' || github.ref == 'refs/heads/staging' && 'staging' }}
       target_service: 'jenkins_agent_windows' 
+      github_runner_os: 'windows-latest'
     secrets:
       env_file_contents: ${{ secrets.ENV_FILE_CONTENTS_JENKINS_AGENT_WINDOWS_RUNTIME_ANDROID}}
       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID}}
