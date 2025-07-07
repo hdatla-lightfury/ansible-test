@@ -105,25 +105,17 @@ jobs:
           TAG=$(python3 -c "import yaml; print(yaml.safe_load(open('${{ env.IMAGE_CONFIG_FILE }}'))['image_tag'])")
           echo "DOCKER_IMAGE_TAG=$TAG" >> $GITHUB_ENV
 
-      - name: Create .env file in Docker build directory
+      - name: Create env variables for ansible
         run: |
           cat <<EOF > ${{ env.DOCKERFILE_DIR }}/.env
           ${{secrets.env_file_contents}}
           EOF
-
-      - name: Export absolute dockerfile_dir
-        run: |
           export DOCKERFILE_ABSOLUTE_DIR="$(pwd)/${{ env.DOCKERFILE_DIR }}"
           echo "DOCKERFILE_ABSOLUTE_DIR=$DOCKERFILE_ABSOLUTE_DIR" >> $GITHUB_ENV
-      
-      - name: Export target service name for docker image being built
-        run: |
           echo "DOCKER_SERVICE_NAME=$DOCKER_SERVICE_NAME" >> $GITHUB_ENV
-      
-      - name: Export target service name for docker image being built
-        run: |
           echo "DOCKER_RUNTIME_OS=$DOCKER_RUNTIME_OS" >> $GITHUB_ENV
-      
+          echo "ENVIRONMENT" >> $GITHUB_ENV
+                
       - name: Generate inventory if target is Windows
         if: ${{ env.DOCKER_RUNTIME_OS == 'windows' }}
         run: |
