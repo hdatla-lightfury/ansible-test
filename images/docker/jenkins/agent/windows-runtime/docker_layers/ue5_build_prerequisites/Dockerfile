@@ -30,3 +30,4 @@ RUN powershell -ExecutionPolicy Bypass -File C:\\remove-duplicate-dlls.ps1
 RUN sleep 5 && COPY "C:\\GatheredDlls\\" "C:\\Windows\\System32\\"
 
 RUN rmdir /S /Q "C:\\GatheredDlls"
+
