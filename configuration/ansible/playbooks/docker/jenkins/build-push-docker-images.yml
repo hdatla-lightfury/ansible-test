@@ -11,6 +11,7 @@
     dockerfile_dir: "{{ dockerfile_dir}}"
     ecr_repository: "{{ ecr_repository}}"
     docker_image_tag: "{{ docker_image_tag}}"
+    target_service: "{{ target_service}}"
 
   tasks:
 
@@ -48,13 +49,24 @@
         password: "{{ ecr_token.stdout }}"
         reauthorize: true
 
-    - name: Build Docker image
-      community.docker.docker_image:
-        name: "{{ ecr_repository_url }}"
-        tag: "{{ docker_image_tag }}"
-        build:
-          path: "{{ dockerfile_dir }}"
-        source: build
+    - name: Build final Docker image via docker-compose 
+      ansible.buildtin.command:ansible.builtin.command: docker compose build
+      args:
+        chdir: "{{ dockerfile_dir }}"
+    
+    - name: Extract image details built vis docker-compose
+      command: docker compose config | yq '.services.{{ target_service }}.image'
+      register: image_name_result
+      changed_when: false
+    
+    - name: Parse Image Name and Tag
+      ansible.builtin.set_fact:
+        source_image: "{{ image_result.stdout.split(':')[0] }}"
+        source_tag: "{{ image_result.stdout.split(':')[1] }}"
+        
+    - name: Tag the built image for ECR
+      ansible.builtin.command: >
+        docker tag {{ source_image }}:{{ source_tag }} {{ ecr_repository_url }}:{{ docker_image_tag }}
 
     - name: Push Docker image to ECR
       community.docker.docker_image_push:
