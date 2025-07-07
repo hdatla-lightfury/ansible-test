@@ -50,7 +50,7 @@
         reauthorize: true
 
     - name: Build final Docker image via docker-compose 
-      ansible.buildtin.command:ansible.builtin.command: docker compose build
+      ansible.buildtin.command: docker compose build
       args:
         chdir: "{{ dockerfile_dir }}"
     
