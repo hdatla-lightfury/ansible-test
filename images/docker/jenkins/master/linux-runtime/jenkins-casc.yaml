@@ -210,7 +210,7 @@ jobs:
               url('https://github.com/LightFuryGames/lfg-titan-jenkins.git')
               credentials('github-creds')
             }
-            branch('${GIT_BRANCH}')
+            branch('\${GIT_BRANCH}')
           }
         }
         steps {
@@ -220,11 +220,6 @@ jobs:
             lookupStrategy('JENKINS_ROOT')
             ignoreExisting(false) // forces rebuild of jobs
             removeAction('DELETE') // prunes obsolete jobs not in the github repo
-          }
-        }
-        steps{
-          Jenkins.instance.getAllItems(Job.class).each { job ->
-            job.save()
           }
         }
       }
