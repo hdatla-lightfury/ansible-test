@@ -1,5 +1,5 @@
 # Use the official Jenkins LTS image with JDK 17 as the base image
-FROM jenkins/jenkins:lts-jdk17
+FROM jenkins/jenkins:lts-jdk21
 # Switch to root user to install additional packages
 USER root
 
