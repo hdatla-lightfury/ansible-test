@@ -181,31 +181,31 @@ groovy:
 
 jobs:
   - script: >
-    job('Job_DSL_Seed') {
-      parameters {
-        stringParam('GIT_BRANCH', 'main', 'Git branch to load DSL scripts from')
-      }
-      scm {
-        git {
-          remote {
-            url('https://github.com/LightFuryGames/lfg-titan-jenkins.git')
-            credentials('github-creds')
+      job('Job_DSL_Seed') {
+        parameters {
+          stringParam('GIT_BRANCH', 'main', 'Git branch to load DSL scripts from')
+        }
+        scm {
+          git {
+            remote {
+              url('https://github.com/LightFuryGames/lfg-titan-jenkins.git')
+              credentials('github-creds')
+            }
+            branch('${GIT_BRANCH}')
           }
-          branch('${GIT_BRANCH}')
+        }
+        steps {
+          dsl {
+            external('jobs/**/*.groovy')
+            additionalClasspath('src')
+            lookupStrategy('JENKINS_ROOT')
+            ignoreExisting(false) // forces rebuild of jobs
+            removeAction('DELETE') // prunes obsolete jobs not in the github repo
+          }
+        }
+        steps{
+          Jenkins.instance.getAllItems(Job.class).each { job ->
+            job.save()
+          }
         }
       }
-      steps {
-        dsl {
-          external('jobs/**/*.groovy')
-          additionalClasspath('src')
-          lookupStrategy('JENKINS_ROOT')
-          ignoreExisting(false) // forces rebuild of jobs
-          removeAction('DELETE') // prunes obsolete jobs not in the github repo
-        }
-      }
-      steps{
-        Jenkins.instance.getAllItems(Job.class).each { job ->
-          job.save()
-        }
-      }
-    }
