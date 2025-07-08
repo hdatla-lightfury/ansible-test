@@ -41,13 +41,11 @@
     - name: Get ECR token (cross-platform)
       shell: "aws ecr get-login-password --region {{ aws_region }}"
       register: ecr_token
-      no_log: true
 
     - name: Docker login to ECR registry (cross platform)
       shell: "echo {{ ecr_token.stdout }} | docker login --username AWS --password-stdin {{ ecr_registry_url }}"
       args:
         chdir: "{{ dockerfile_dir }}"
-      no_log: true
     
     - name: Check if Docker image with the same tag already exists in ECR (only in prod)
       shell: |
@@ -80,7 +78,6 @@
         chdir: "{{ dockerfile_dir }}"
       register: image_name_result
       changed_when: false
-      no_log: true
 
     - name: Parse Image Name and Tag
       set_fact:
@@ -89,10 +86,9 @@
 
     - name: Tag the built image for ECR
       shell: >
-        docker tag {{ source_image }}:{{ source_tag }} {{ ecr_repository_url }}:{{ docker_image_name-docker_image_tag }}
-      no_log: true
+        docker tag {{ source_image }}:{{ source_tag }} {{ ecr_repository_url }}:{{ docker_image_name }}-{{ docker_image_tag }}
 
     - name: Push Docker image to ECR
       shell: >
-        docker push {{ ecr_repository_url }}:{{ docker_image_name-docker_image_tag}}
-      no_log: true
+        docker push {{ ecr_repository_url }}:{{ docker_image_name }}-{{ docker_image_tag }}
+        
