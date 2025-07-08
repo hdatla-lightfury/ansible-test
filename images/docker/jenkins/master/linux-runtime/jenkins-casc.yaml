@@ -126,10 +126,10 @@ credentials:
               description: Slack token
           - usernamePassword:
               scope: GLOBAL
-              id: "github-creds"
-              username: "${GITHUB_USERNAME}"
-              password: "${GITHUB_TOKEN}"
-              description: "GitHub access using PAT"
+              id: github-creds
+              username: '${GITHUB_USERNAME}'
+              password: '${GITHUB_TOKEN}'
+              description: GitHub access using PAT
               
 unclassified:
   buildDiscarders:
@@ -161,12 +161,29 @@ groovy:
   - script: |
       import hudson.model.User
       import jenkins.security.ApiTokenProperty
+
       def perforce_token = System.getenv("PERFORCE_TRIGGER_API_TOKEN")
       def authsphere_token = System.getenv("AUTHSPHERE_TOKEN")
       def swarm_agent_token = System.getenv("SWARM_AGENT_TOKEN")
-      def user = User.get('jenkins-admin@lightfurygames.com')
-      def tokenStore = user.getProperty(ApiTokenProperty.class).tokenStore
-      def ensureToken(String name, String value) {
+
+      if (!perforce_token || !authsphere_token || !swarm_agent_token) {
+          println "One or more required environment variables are missing. Aborting token creation."
+          return
+      }
+
+      def user = User.get('jenkins-admin@lightfurygames.com', false, null)
+      if (user == null) {
+          println "User 'jenkins-admin@lightfurygames.com' not found."
+          return
+      }
+
+      def tokenStore = user.getProperty(ApiTokenProperty.class)?.tokenStore
+      if (tokenStore == null) {
+          println "Token store not found for user. Ensure ApiTokenProperty is available."
+          return
+      }
+
+      def ensureToken = { String name, String value ->
           if (!tokenStore.tokenList.any { it.name == name }) {
               tokenStore.addFixedNewToken(name, value)
               println "Created token: ${name}"
@@ -174,24 +191,25 @@ groovy:
               println "Token '${name}' already exists. Skipping."
           }
       }
+
       ensureToken("perforce-trigger-token", perforce_token)
       ensureToken("authsphere-token", authsphere_token)
       ensureToken("swarm-agent-token", swarm_agent_token)
+
       user.save()
 
 jobs:
   - script: >
+      def branchName = System.getenv("SEED_JOB_GIT_BRANCH") ?: "main"
+      
       job('Job_DSL_Seed') {
-        parameters {
-          stringParam('GIT_BRANCH', 'main', 'Git branch to load DSL scripts from')
-        }
         scm {
           git {
             remote {
               url('https://github.com/LightFuryGames/lfg-titan-jenkins.git')
               credentials('github-creds')
             }
-            branch('${GIT_BRANCH}')
+            branch(branchName)
           }
         }
         steps {
@@ -199,13 +217,8 @@ jobs:
             external('jobs/**/*.groovy')
             additionalClasspath('src')
             lookupStrategy('JENKINS_ROOT')
-            ignoreExisting(false) // forces rebuild of jobs
-            removeAction('DELETE') // prunes obsolete jobs not in the github repo
-          }
-        }
-        steps{
-          Jenkins.instance.getAllItems(Job.class).each { job ->
-            job.save()
+            ignoreExisting(false)
+            removeAction('DELETE')
           }
         }
       }
