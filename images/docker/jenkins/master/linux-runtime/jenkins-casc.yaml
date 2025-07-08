@@ -159,14 +159,27 @@ unclassified:
 
 groovy:
   - script: |
-      import hudson.model.User
-      import jenkins.security.ApiTokenProperty
-      def perforce_token = System.getenv("PERFORCE_TRIGGER_API_TOKEN")
-      def authsphere_token = System.getenv("AUTHSPHERE_TOKEN")
-      def swarm_agent_token = System.getenv("SWARM_AGENT_TOKEN")
-      def user = User.get('jenkins-admin@lightfurygames.com')
-      def tokenStore = user.getProperty(ApiTokenProperty.class).tokenStore
-      def ensureToken(String name, String value) {
+      / Validate tokens are not null
+      if (!perforce_token || !authsphere_token || !swarm_agent_token) {
+          println "One or more required environment variables are missing. Aborting token creation."
+          return
+      }
+
+      // Retrieve user
+      def user = User.get('jenkins-admin@lightfurygames.com', false, null)
+      if (user == null) {
+          println "User 'jenkins-admin@lightfurygames.com' not found."
+          return
+      }
+
+      def tokenStore = user.getProperty(ApiTokenProperty.class)?.tokenStore
+      if (tokenStore == null) {
+          println "Token store not found for user. Ensure ApiTokenProperty is available."
+          return
+      }
+
+      // Helper to ensure fixed token
+      def ensureToken = { String name, String value ->
           if (!tokenStore.tokenList.any { it.name == name }) {
               tokenStore.addFixedNewToken(name, value)
               println "Created token: ${name}"
@@ -174,10 +187,14 @@ groovy:
               println "Token '${name}' already exists. Skipping."
           }
       }
+
+      // Create tokens
       ensureToken("perforce-trigger-token", perforce_token)
       ensureToken("authsphere-token", authsphere_token)
       ensureToken("swarm-agent-token", swarm_agent_token)
-      user.save()
+
+      // Save user
+user.save()
 
 jobs:
   - script: >
