@@ -1,261 +1,38 @@
-## TODO : Find a way to split this in to multiple yaml files and merge them together
-## Merging casc files as reported by multiple developers is a huge pain and doesn't support deep merging, so for now we have to live with this long file
-## Refer -> https://github.com/jenkinsci/configuration-as-code-plugin/issues/1303
-
-x-baseView: &baseView
-  columns:
-    - "status"
-    - "weather"
-    - "jobName"
-    - "lastSuccess"
-    - "lastFailure"
-    - "lastDuration"
-    - "buildButton"
-    - "favoriteColumn"
-  includeStdJobList: true
-  topPortlets:
-    - latestBuilds:
-        name: "Latest builds"
-        numBuilds: 10
-
-x-regExJobFilter: &baseRegExJobFilter
-    includeExcludeTypeString: "includeMatched"
-    matchDisplayName: false
-    matchFullDisplayName: false
-    matchFullName: false
-    matchName: true
-    valueTypeString: "NAME"
-
-jenkins:
-  systemMessage: "Jenkins configured automatically by Jenkins Configuration as Code plugin"
-  numExecutors: 6 #Should ideally be the no of nodes available.
-  myViewsTabBar: "standard"
-  primaryView:
-      listView:
-        name: "all"
-
-  views:
-    - dashboard:
-        <<: *baseView
-        jobFilters:
-        - regExJobFilter:
-            <<: *baseRegExJobFilter
-            regex: ".*Android.*"
-        name: "1. Android"
-    - dashboard:
-        <<: *baseView
-        jobFilters:
-          - regExJobFilter:
-              <<: *baseRegExJobFilter
-              regex: ".*-Windows(?:-|$).*"
-        name: "2. Windows"
-    - dashboard:
-        <<: *baseView
-        jobFilters:
-          - regExJobFilter:
-              <<: *baseRegExJobFilter
-              regex: ".*WindowsEditor.*"
-        name: "3. UGS"
-    - all:
-        name: "all"
-
-  viewsTabBar: "standard"
-
-  authorizationStrategy:
-    roleBased:
-      roles:
-        # Define roles at the global level
-        # Full administrative access for backend and devops team
-        global:
-          - name: administration
-            permissions:
-              - "Overall/Administer"
-            entries:
-              - user: "jenkins-admin@lightfurygames.com"
-          - name: "readonly" ##every user who is not given administrator access should be given this role by authsphere by default
-            permissions:
-                - "Overall/Read"
-            entries:
-                - group: "authenticated"
-        # Ability to run parent pipelines for QA
-        items:
-          - name: titan-build-publish-jobs-run-access
-            pattern: "BuildPublish.*"
-            permissions: &build_run_permissions
-              - "Job/Read"
-              - "Job/Build"
-              - "Job/Cancel"
-              - "Job/Discover"
-              - "Run/Replay"
-              - "Run/Update"
-              - "View/Read"
-              - "Overall/Read"
-          # Ability to run parent jobs and view logs of child jobs
-          - name: titan-all-jobs-run-access
-            pattern: "^(?!(?:Reload Jenkins Casc$|Job_DSL_Seed$|Install Plugins)$).*$"
-            permissions: *build_run_permissions
-          # Ability to view status,logs of all jobs
-          - name: titan-all-jobs-view-access
-            pattern: "^(?!(?:Reload Jenkins Casc$|Job_DSL_Seed$|Install Plugins)$).*$"
-            permissions: &view_permissions
-              - "Job/Read"
-              - "View/Read"
-              - "Overall/Read"
-          # Ability to view status,logs of parent pipelines
-          - name: titan-build-publish-jobs-view-access
-            pattern: "BuildPublish.*"
-            permissions: *view_permissions
-
-security:
-  globalJobDslSecurityConfiguration:
-    useScriptSecurity: false
-
-credentials:
-  system:
-    domainCredentials:
-      - credentials:
-          - string:
-              scope: GLOBAL
-              id: slack-token
-              secret: '${SLACK_TOKEN}'
-              description: Slack token
-          - usernamePassword:
-              scope: GLOBAL
-              id: github-creds
-              username: '${GITHUB_USERNAME}'
-              password: '${GITHUB_TOKEN}'
-              description: GitHub access using PAT
-              
-unclassified:
-  buildDiscarders:
-    configuredBuildDiscarders:
-      - "jobBuildDiscarder"
-      - simpleBuildDiscarder:
-          discarder:
-            logRotator:
-              daysToKeepStr: "45"
-              numToKeepStr: "300"
-  location:
-    url: "${JENKINS_URL}" # Replace with your Jenkins server's base URL
-    adminAddress: "jenkins-admin@lightfurygames.com"  # Set the administrator's email address
-  mailer:
-    authentication:
-      password: "${JENKINS_ADMIN_GOOGLE_APP_PASSWORD}"
-      username: "jenkins-admin@lightfurygames.com"
-    charset: "UTF-8"
-    smtpHost: "smtp.gmail.com"
-    smtpPort: "465"
-    useSsl: true
-    useTls: false
-  slackNotifier:
-    teamDomain:  lightfurygames.slack.com
-    tokenCredentialId: slack-token
-    botUser: true
-
-groovy:
-  - script: |
-      import hudson.model.User
-      import jenkins.security.ApiTokenProperty
-
-      def perforce_token = System.getenv("PERFORCE_TRIGGER_API_TOKEN")
-      def authsphere_token = System.getenv("AUTHSPHERE_TOKEN")
-      def swarm_agent_token = System.getenv("SWARM_AGENT_TOKEN")
-
-      if (!perforce_token || !authsphere_token || !swarm_agent_token) {
-          println "One or more required environment variables are missing. Aborting token creation."
-          return
-      }
-
-      def user = User.get('jenkins-admin@lightfurygames.com', false, null)
-      if (user == null) {
-          println "User 'jenkins-admin@lightfurygames.com' not found."
-          return
-      }
-
-      def tokenStore = user.getProperty(ApiTokenProperty.class)?.tokenStore
-      if (tokenStore == null) {
-          println "Token store not found for user. Ensure ApiTokenProperty is available."
-          return
-      }
-
-      def ensureToken = { String name, String value ->
-          if (!tokenStore.tokenList.any { it.name == name }) {
-              tokenStore.addFixedNewToken(name, value)
-              println "Created token: ${name}"
-          } else {
-              println "Token '${name}' already exists. Skipping."
-          }
-      }
-
-      ensureToken("perforce-trigger-token", perforce_token)
-      ensureToken("authsphere-token", authsphere_token)
-      ensureToken("swarm-agent-token", swarm_agent_token)
-
-      user.save()
-    
-  - script: |
-      import jenkins.model.*
-      import hudson.security.*
-      import org.jenkinsci.plugins.GoogleOAuth2SecurityRealm
-      import hudson.tasks.Mailer
-      import hudson.security.HudsonPrivateSecurityRealm.Details
-
-      def env = System.getenv("ENVIRONMENT") ?: "prod"
-
-      if (env == "staging") {
-          println "Configuring local securityRealm (staging environment)"
-          def realm = new HudsonPrivateSecurityRealm(false)
-          def adminId = "jenkins-admin@lightfurygames.com"
-          def adminPassword = System.getenv("JENKINS_ADMIN_PASSWORD")
-          def user = realm.createAccount(adminId, adminPassword)
-
-          // Set display name and email
-          def userDetails = user.getProperty(Details)
-          if (userDetails) {
-              userDetails.setFullName("lightfury-jenkins-admin")
-          }
-
-          def mailerProp = new Mailer.UserProperty("jenkins-admin@lightfurygames.com")
-          user.addProperty(mailerProp)
-
-          Jenkins.instance.setSecurityRealm(realm)
-      } else {
-          println "Configuring Google OAuth2 securityRealm (non-staging)"
-          def clientId = System.getenv("GOOGLE_CLIENT_ID")
-          def clientSecret = System.getenv("GOOGLE_CLIENT_SECRET")
-
-          if (!clientId || !clientSecret) {
-              println "OAuth credentials missing! Falling back to AllowAll (unsafe)."
-              Jenkins.instance.setSecurityRealm(new LegacySecurityRealm())
-              Jenkins.instance.setAuthorizationStrategy(new FullControlOnceLoggedInAuthorizationStrategy())
-              return
-          }
-
-          def realm = new GoogleOAuth2SecurityRealm(clientId, clientSecret)
-          Jenkins.instance.setSecurityRealm(realm)
-      }
-
-jobs:
-  - script: >
-      def branchName = System.getenv("SEED_JOB_GIT_BRANCH") ?: "main"
-      
-      job('Job_DSL_Seed') {
-        scm {
-          git {
-            remote {
-              url('https://github.com/LightFuryGames/lfg-titan-jenkins.git')
-              credentials('github-creds')
-            }
-            branch(branchName)
-          }
-        }
-        steps {
-          dsl {
-            external('jobs/**/*.groovy')
-            additionalClasspath('src')
-            lookupStrategy('JENKINS_ROOT')
-            ignoreExisting(false)
-            removeAction('DELETE')
-          }
-        }
-      }
+services:
+  jenkins-master-linux:
+    image: jenkins-master-linux
+    container_name: jenkins-master-linux
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        CASC_JENKINS_CONFIG: /var/jenkins_home/jenkins-casc.yaml
+        SLACK_TOKEN: ${SLACK_TOKEN}
+        JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD}
+        PERFORCE_TRIGGER_API_TOKEN: ${PERFORCE_TRIGGER_API_TOKEN}
+        AUTHSPHERE_TOKEN: ${AUTHSPHERE_TOKEN}
+        SWARM_AGENT_TOKEN: ${SWARM_AGENT_TOKEN}
+        PERFORCE_USERNAME: ${PERFORCE_USERNAME}
+        PERFORCE_PASSWORD: ${PERFORCE_PASSWORD}
+        PERFORCE_PORT: ${PERFORCE_PORT}
+        GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+        GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+        JENKINS_ADMIN_GOOGLE_APP_PASSWORD: ${JENKINS_ADMIN_GOOGLE_APP_PASSWORD}
+        GITHUB_USERNAME: ${GITHUB_USERNAME}
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+        SEED_JOB_GITHUB_BRANCH: ${SEED_JOB_GITHUB_BRANCH}
+        ENVIRONMENT: ${ENVIRONMENT}
+    ports:
+      - "8080:8080"  # Jenkins UI
+      - "50000:50000"  # Jenkins agent communication
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket to allow Docker commands inside Jenkins
+    networks:
+      - jenkins-network
+    restart: on-failure
+volumes:
+  jenkins_home:
+networks:
+  jenkins-network:
+    driver: bridge
