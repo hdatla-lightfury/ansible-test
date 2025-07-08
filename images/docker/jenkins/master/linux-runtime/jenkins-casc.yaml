@@ -126,10 +126,10 @@ credentials:
               description: Slack token
           - usernamePassword:
               scope: GLOBAL
-              id: "github-creds"
-              username: "${GITHUB_USERNAME}"
-              password: "${GITHUB_TOKEN}"
-              description: "GitHub access using PAT"
+              id: github-creds
+              username: '${GITHUB_USERNAME}'
+              password: '${GITHUB_TOKEN}'
+              description: GitHub access using PAT
               
 unclassified:
   buildDiscarders:
