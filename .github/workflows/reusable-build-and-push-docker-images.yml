@@ -1,4 +1,4 @@
-name: Reusbale - Build and Push Jenkins Docker Images to ECR
+name: Reusabale - Build and Push Jenkins Docker Images to ECR
 
 on:
   workflow_call:
@@ -26,7 +26,7 @@ on:
       environment_name:
         required: true
         type: string
-        description: the environment(production/staging) to deploy to
+        description: the environment(prod/staging) to deploy to
       target_service:
         required: true
         type: string
@@ -35,6 +35,10 @@ on:
         required: true
         type: string
         description: the runtime os where the docker image build will happen
+      docker_image_name:
+        required: true
+        type: string
+        description: the name of the docker image being built        
 
     secrets:
       env_file_contents:
@@ -45,15 +49,6 @@ on:
         required: true
       aws_region:
         required: true
-      lfg_nw_static_ip:
-        required: false
-      #Currently its BUILD-PC5
-      lfg_ansible_managed_node_port:
-        required: false
-      lfg_ansible_managed_node_user:
-        required: false
-      lfg_ansible_managed_node_pass:
-        required: false
         
 jobs:
   build-and-push-docker-image-to-ecr:
@@ -70,11 +65,8 @@ jobs:
       ENV_FILE_CONTENTS: ${{ secrets.env_file_contents }}
       DOCKER_SERVICE_NAME: ${{ inputs.target_service}}
       DOCKER_RUNTIME_OS: ${{inputs.docker_runtime_os}}
-      LFG_NW_STATIC_IP: ${{secrets.lfg_nw_static_ip}}
-      LFG_ANSIBLE_MANAGED_NODE_PORT: ${{secrets.lfg_ansible_managed_node_port}}
-      LFG_ANSIBLE_MANAGED_NODE_USER: ${{secrets.lfg_ansible_managed_node_user}}
-      LFG_ANSIBLE_MANAGED_NODE_PASS: ${{secrets.lfg_ansible_managed_node_pass}}
       ENVIRONMENT: ${{inputs.environment_name}}
+      DOCKER_IMAGE_NAME: ${{inputs.docker_image_name}}
 
     steps:
       - name: Checkout code
@@ -116,31 +108,10 @@ jobs:
           echo "DOCKER_SERVICE_NAME=$DOCKER_SERVICE_NAME" >> $GITHUB_ENV
           echo "DOCKER_RUNTIME_OS=$DOCKER_RUNTIME_OS" >> $GITHUB_ENV
           echo "ENVIRONMENT=$ENVIRONMENT" >> $GITHUB_ENV
-                
-      - name: Generate inventory if target is Windows
-        if: ${{ env.DOCKER_RUNTIME_OS == 'windows' }}
-        run: |
-          cat <<EOF > inventory.yml
-          all:
-            hosts:
-              windows_host:
-                ansible_host: $LFG_NW_STATIC_IP
-                ansible_port: $LFG_ANSIBLE_MANAGED_NODE_PORT
-                ansible_user: $LFG_ANSIBLE_MANAGED_NODE_USER
-                ansible_password: '${LFG_ANSIBLE_MANAGED_NODE_PASS}'
-                ansible_connection: ssh
-                ansible_shell_type: cmd
-          EOF
-
+          echo "DOCKER_IMAGE_NAME=$DOCKER_IMAGE_NAME" >> $GITHUB_ENV              
 
       - name: Run Ansible playbook to build and push docker image (Linux)
         if: ${{ env.DOCKER_RUNTIME_OS == 'linux' }}
         run: |
           ansible-playbook "${{ env.ANSIBLE_PLAYBOOK_DIR }}/${{ env.ANSIBLE_PLAYBOOK_FILE_NAME }}" \
-            --extra-vars "@${{ env.ANSIBLE_PLAYBOOK_DIR }}/extra-vars.yml" -v
-
-      - name: Run Ansible playbook to build and push docker image (Windows)
-        if: ${{ env.DOCKER_RUNTIME_OS == 'windows' }}
-        run: |
-          ansible-playbook -i inventory.yml "${{ env.ANSIBLE_PLAYBOOK_DIR }}/${{ env.ANSIBLE_PLAYBOOK_FILE_NAME }}" \
             --extra-vars "@${{ env.ANSIBLE_PLAYBOOK_DIR }}/extra-vars.yml" -v

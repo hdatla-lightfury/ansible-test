@@ -1,6 +1,6 @@
 ---
 - name: Build and push Jenkins Docker image to AWS ECR
-  hosts:  "{{ 'localhost' if docker_runtime_os == 'linux' else 'windows_host' }}"
+  hosts:  localhost
   gather_facts: false
   collections:
     - amazon.aws
@@ -8,10 +8,11 @@
 
   vars:
     aws_region: "{{ aws_region }}"
-    dockerfile_dir: "{{ dockerfile_dir}}"
-    ecr_repository: "{{ ecr_repository}}"
-    docker_image_tag: "{{ docker_image_tag}}"
-    target_service: "{{ target_service}}"
+    dockerfile_dir: "{{ dockerfile_dir }}"
+    ecr_repository: "{{ ecr_repository }}"
+    docker_image_tag: "{{ docker_image_name }}-{{ docker_image_tag }}"
+    target_service: "{{ target_service }}"
+    docker_image_name: "{{ docker_image_name }}"
 
   tasks:
     - name: Ensure required variables are set
@@ -40,15 +41,15 @@
     - name: Get ECR token (cross-platform)
       shell: "aws ecr get-login-password --region {{ aws_region }}"
       register: ecr_token
-      when: docker_runtime_os in ['linux', 'windows']
+      no_log: true
 
     - name: Docker login to ECR registry (cross platform)
       shell: "echo {{ ecr_token.stdout }} | docker login --username AWS --password-stdin {{ ecr_registry_url }}"
       args:
         chdir: "{{ dockerfile_dir }}"
-      when: docker_runtime_os in ["linux", "windows"]
+      no_log: true
     
-    - name: Check if Docker image with the same tag already exists in ECR (only in production)
+    - name: Check if Docker image with the same tag already exists in ECR (only in prod)
       shell: |
         aws ecr describe-images \
           --repository-name {{ ecr_repository }} \
@@ -57,22 +58,21 @@
       register: image_check_result
       ignore_errors: true
       changed_when: false
-      when: environment_name == "production"
+      when: environment_name == "prod"
 
-    - name: Fail if image with this tag already exists in production
+    - name: Fail if image with this tag already exists in prod
       fail:
         msg: >
-          Docker image with tag '{{ docker_image_tag }}' already exists in ECR '{{ ecr_repository }}' in production.
-          Please use a unique tag or delete the existing image before proceeding.
+          Docker image with tag '{{ docker_image_tag }}' already exists in ECR '{{ ecr_repository }}' in prod.
+          Please use a unique tag or delete the existing image before proceeding if earlier push was a mistake.
       when:
-        - environment_name == "production"
+        - environment_name == "prod"
         - image_check_result.rc == 0
 
     - name: Build final Docker image via docker-compose 
       shell: "docker compose build {{ target_service }}"
       args:
         chdir: "{{ dockerfile_dir }}"
-      when: docker_runtime_os in ["linux", "windows"]
     
     - name: Extract image details built via docker-compose
       shell: docker compose config | yq '.services.{{ target_service }}.image'
@@ -80,20 +80,19 @@
         chdir: "{{ dockerfile_dir }}"
       register: image_name_result
       changed_when: false
-      when: docker_runtime_os in ["linux", "windows"]
+      no_log: true
 
     - name: Parse Image Name and Tag
       set_fact:
-        source_image: "{{ image_result.stdout.split(':')[0] }}"
-        source_tag: "{{ image_result.stdout.split(':')[1] }}"
-      when: docker_runtime_os in ["linux", "windows"]
+        source_image: "{{ image_name_result.stdout.split(':')[0] }}"
+        source_tag: "latest"
 
     - name: Tag the built image for ECR
       shell: >
         docker tag {{ source_image }}:{{ source_tag }} {{ ecr_repository_url }}:{{ docker_image_tag }}
-      when: docker_runtime_os in ["linux", "windows"]
+      no_log: true
 
     - name: Push Docker image to ECR
       shell: >
         docker push {{ ecr_repository_url }}:{{ docker_image_tag }}
-      when: docker_runtime_os in ["linux", "windows"]
+      no_log: true

@@ -10,9 +10,8 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to build (default: development)'
+        description: 'Branch to build(do not build on main)'
         required: false
-        default: 'development'
   
 jobs:
   build-master-linux-runtime:
@@ -23,15 +22,12 @@ jobs:
       ansible_playbook_dir: configuration/ansible/playbooks/docker/jenkins/
       ansible_playbook_file_name: build-push-docker-images.yml
       ecr_repo: jenkins/master
-      environment_name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging'}}
+      environment_name: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging'}}
       target_service: 'jenkins-master-linux'
       docker_runtime_os: 'linux'
+      docker_image_name: 'jenkins-master-linux'
     secrets: 
       env_file_contents: ${{ secrets.ENV_FILE_CONTENTS_JENKINS_MASTER_LINUX_RUNTIME}}
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID}}
       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       aws_region: ${{ secrets.AWS_DEFAULT_REGION }}
-      lfg_nw_static_ip: ${{ secrets.LFG_NW_STATIC_IP }}
-      lfg_ansible_managed_node_port: ${{secrets.LFG_ANSIBLE_MANAGED_NODE_PORT}}
-      lfg_ansible_managed_node_user: ${{secrets.LFG_ANSIBLE_MANAGED_NODE_USER}}
-      lfg_ansible_managed_node_pass: ${{secrets.LFG_ANSIBLE_MANAGED_NODE_PASS}}
