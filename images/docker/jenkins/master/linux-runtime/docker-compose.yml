@@ -20,6 +20,7 @@ services:
         JENKINS_ADMIN_GOOGLE_APP_PASSWORD: ${JENKINS_ADMIN_GOOGLE_APP_PASSWORD}
         GITHUB_USERNAME: ${GITHUB_USERNAME}
         GITHUB_TOKEN: ${GITHUB_TOKEN}
+        SEED_JOB_GITHUB_BRANCH: ${SEED_JOB_GITHUB_BRANCH}
     ports:
       - "8080:8080"  # Jenkins UI
       - "50000:50000"  # Jenkins agent communication
