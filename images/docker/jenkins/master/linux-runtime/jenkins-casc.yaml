@@ -193,7 +193,7 @@ groovy:
 
       user.save()
     
-    - script: |
+  - script: |
       import jenkins.model.*
       import hudson.security.*
       import org.jenkinsci.plugins.GoogleOAuth2SecurityRealm
@@ -237,7 +237,7 @@ groovy:
 
 jobs:
   - script: >
-      def branchName = System.getenv("SEED_JOB_GIT_BRANCH") ?: "main"
+      def branchName = System.getenv("SEED_JOB_GITHUB_BRANCH") ?: "main"
       
       job('Job_DSL_Seed') {
         scm {
