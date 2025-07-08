@@ -194,7 +194,7 @@ groovy:
       ensureToken("swarm-agent-token", swarm_agent_token)
 
       // Save user
-user.save()
+      user.save()
 
 jobs:
   - script: >
