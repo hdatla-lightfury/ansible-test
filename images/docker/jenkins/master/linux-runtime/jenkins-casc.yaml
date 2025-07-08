@@ -210,7 +210,7 @@ jobs:
               url('https://github.com/LightFuryGames/lfg-titan-jenkins.git')
               credentials('github-creds')
             }
-            branch('\${GIT_BRANCH}')
+            branch("\${params.GIT_BRANCH}")
           }
         }
         steps {
