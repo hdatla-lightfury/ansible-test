@@ -159,13 +159,18 @@ unclassified:
 
 groovy:
   - script: |
-      / Validate tokens are not null
+      import hudson.model.User
+      import jenkins.security.ApiTokenProperty
+
+      def perforce_token = System.getenv("PERFORCE_TRIGGER_API_TOKEN")
+      def authsphere_token = System.getenv("AUTHSPHERE_TOKEN")
+      def swarm_agent_token = System.getenv("SWARM_AGENT_TOKEN")
+
       if (!perforce_token || !authsphere_token || !swarm_agent_token) {
           println "One or more required environment variables are missing. Aborting token creation."
           return
       }
 
-      // Retrieve user
       def user = User.get('jenkins-admin@lightfurygames.com', false, null)
       if (user == null) {
           println "User 'jenkins-admin@lightfurygames.com' not found."
@@ -178,7 +183,6 @@ groovy:
           return
       }
 
-      // Helper to ensure fixed token
       def ensureToken = { String name, String value ->
           if (!tokenStore.tokenList.any { it.name == name }) {
               tokenStore.addFixedNewToken(name, value)
@@ -188,12 +192,10 @@ groovy:
           }
       }
 
-      // Create tokens
       ensureToken("perforce-trigger-token", perforce_token)
       ensureToken("authsphere-token", authsphere_token)
       ensureToken("swarm-agent-token", swarm_agent_token)
 
-      // Save user
       user.save()
 
 jobs:
