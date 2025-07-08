@@ -13,6 +13,11 @@ docker-plugin
 job-dsl
 workflow-aggregator
 git
+git-client
+git-server
+github
+github-api
+github-branch-source
 filesystem_scm
 matrix-auth
 credentials-binding
