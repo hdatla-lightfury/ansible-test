@@ -61,11 +61,6 @@ jenkins:
 
   viewsTabBar: "standard"
 
-  securityRealm:
-    googleOAuth2:
-      clientId: "${GOOGLE_CLIENT_ID}"
-      clientSecret: "${GOOGLE_CLIENT_SECRET}"
-
   authorizationStrategy:
     roleBased:
       roles:
@@ -197,10 +192,52 @@ groovy:
       ensureToken("swarm-agent-token", swarm_agent_token)
 
       user.save()
+    
+  - script: |
+      import jenkins.model.*
+      import hudson.security.*
+      import org.jenkinsci.plugins.GoogleOAuth2SecurityRealm
+      import hudson.tasks.Mailer
+      import hudson.security.HudsonPrivateSecurityRealm.Details
+
+      def env = System.getenv("ENVIRONMENT") ?: "prod"
+
+      if (env == "staging") {
+          println "Configuring local securityRealm (staging environment)"
+          def realm = new HudsonPrivateSecurityRealm(false)
+          def adminId = "jenkins-admin@lightfurygames.com"
+          def adminPassword = System.getenv("JENKINS_ADMIN_PASSWORD")
+          def user = realm.createAccount(adminId, adminPassword)
+
+          // Set display name and email
+          def userDetails = user.getProperty(Details)
+          if (userDetails) {
+              userDetails.setFullName("lightfury-jenkins-admin")
+          }
+
+          def mailerProp = new Mailer.UserProperty("jenkins-admin@lightfurygames.com")
+          user.addProperty(mailerProp)
+
+          Jenkins.instance.setSecurityRealm(realm)
+      } else {
+          println "Configuring Google OAuth2 securityRealm (non-staging)"
+          def clientId = System.getenv("GOOGLE_CLIENT_ID")
+          def clientSecret = System.getenv("GOOGLE_CLIENT_SECRET")
+
+          if (!clientId || !clientSecret) {
+              println "OAuth credentials missing! Falling back to AllowAll (unsafe)."
+              Jenkins.instance.setSecurityRealm(new LegacySecurityRealm())
+              Jenkins.instance.setAuthorizationStrategy(new FullControlOnceLoggedInAuthorizationStrategy())
+              return
+          }
+
+          def realm = new GoogleOAuth2SecurityRealm(clientId, clientSecret)
+          Jenkins.instance.setSecurityRealm(realm)
+      }
 
 jobs:
   - script: >
-      def branchName = System.getenv("SEED_JOB_GIT_BRANCH") ?: "main"
+      def branchName = System.getenv("SEED_JOB_GITHUB_BRANCH") ?: "main"
       
       job('Job_DSL_Seed') {
         scm {
